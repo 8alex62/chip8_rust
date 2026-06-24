@@ -1,4 +1,7 @@
-use std::fmt::Display;
+use std::fmt::{Display};
+use std::assert_matches;
+
+use crate::errors::CpuError;
 
 const MEMORY_SIZE: usize = 4096; // 4KB of memory
 const REGISTERS_SIZE: usize = 16; // 16 general-purpose registers
@@ -40,13 +43,24 @@ impl Display for CPU {
     }
 }
 
-// This function retrieves the opcode from the memory at the current program counter (pc).
-// Because Chip-8 opcodes are 2 bytes long, 
-// we read two consecutive bytes from memory and combine them into a single u16 value.
-pub fn get_opcode(memory: &[u8], pc: u16) -> u16 {
-    let high_byte = memory[pc as usize] as u16;
-    let low_byte = memory[(pc + 1) as usize] as u16;
-    (high_byte << 8) | low_byte
+impl CPU {
+    // Writes the valeu at the specified address if in bounds
+    pub fn write_memory(&mut self, address: usize, value: u8) -> Result<(), CpuError> {
+        if address >= self.memory.len() || address < PROGRAM_START as usize {
+            return Err(CpuError::MemoryAddressOutOfBounds((address, PROGRAM_START as usize, MEMORY_SIZE as usize)))
+        }
+
+        self.memory[address] = value;
+        Ok(())
+    }
+
+    // Gets the next opcode from the memory
+    pub fn get_next_opcode(&mut self) -> u16 {
+        let pc = self.pc;
+        let high_byte = self.memory[pc as usize] as u16;
+        let low_byte = self.memory[(pc + 1) as usize] as u16;
+        (high_byte << 8) | low_byte
+    }
 }
 
 #[cfg(test)]
@@ -65,9 +79,36 @@ mod tests {
     }
 
     #[test]
-    fn test_get_opcode() {
-        let memory = [0x80, 0x10, 0x00, 0x00]; // Example opcode: 8XY0
-        let opcode = get_opcode(&memory, 0);
+    fn test_get_next_opcode() {
+        // Initialize the memory with the opcode
+        let mut cpu = CPU::new();
+        cpu.memory[0x200] = 0x80;
+        cpu.memory[0x201] = 0x10;
+
+        let opcode = cpu.get_next_opcode();
         assert_eq!(opcode, 0x8010);
+    }
+
+    #[test]
+    fn test_write_memory_ok() {
+        let mut cpu = CPU::new();
+
+        let _ = cpu.write_memory(0x200, 0x80);
+
+        assert_eq!(cpu.memory[0x200], 0x80)
+    }
+
+    #[test]
+    fn test_write_memory_nok() {
+        let mut cpu = CPU::new();
+
+        let high_limit = cpu.write_memory(MEMORY_SIZE, 0x80);
+        let low_limit = cpu.write_memory(PROGRAM_START as usize - 1, 0x80);
+
+        assert!(high_limit.is_err());
+        assert_matches!(high_limit.unwrap_err(), CpuError::MemoryAddressOutOfBounds((_, _, _)));
+        
+        assert!(low_limit.is_err());
+        assert_matches!(low_limit.unwrap_err(), CpuError::MemoryAddressOutOfBounds((_, _, _)));
     }
 }
