@@ -2,6 +2,7 @@ use std::fmt::{Display};
 use std::assert_matches;
 
 use crate::errors::CpuError;
+use crate::instructions::Instruction;
 
 const MEMORY_SIZE: usize = 4096; // 4KB of memory
 const REGISTERS_SIZE: usize = 16; // 16 general-purpose registers
@@ -44,8 +45,8 @@ impl Display for CPU {
 }
 
 impl CPU {
-    // Writes the valeu at the specified address if in bounds
-    pub fn write_memory(&mut self, address: usize, value: u8) -> Result<(), CpuError> {
+    // Writes the value at the specified address if in bounds
+    fn write_memory(&mut self, address: usize, value: u8) -> Result<(), CpuError> {
         if address >= self.memory.len() || address < PROGRAM_START as usize {
             return Err(CpuError::MemoryAddressOutOfBounds((address, PROGRAM_START as usize, MEMORY_SIZE as usize)))
         }
@@ -55,11 +56,47 @@ impl CPU {
     }
 
     // Gets the next opcode from the memory
-    pub fn get_next_opcode(&mut self) -> u16 {
+    fn get_next_opcode(self) -> u16 {
         let pc = self.pc;
         let high_byte = self.memory[pc as usize] as u16;
         let low_byte = self.memory[(pc + 1) as usize] as u16;
         (high_byte << 8) | low_byte
+    }
+
+    // Executes the instruction given in parameters
+    fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), CpuError> {
+        match instruction {
+            Instruction::JpAddr { address } => self.jump(address),
+            Instruction::CallAddr { address } => self.call(address),
+            Instruction::SeVxByte { vx, nn } => self.skip_e(vx, nn),
+            Instruction::SneVxByte { vx, nn } => self.skip_ne(vx, nn),
+            _ => return Err(CpuError::UnknownInstruction)
+        }
+
+        Ok(())
+    }
+
+    // Jumps to the address given in parameters -> 0x1NNN
+    fn jump(&mut self, address: u16) {
+        self.pc = address;
+    }
+
+    // Calls the function at the specified address
+    fn call(&mut self, address: u16) {
+        // TODO : implementing the logic
+    }
+
+    // Skips next instruction if vx == nn
+    fn skip_e(&mut self, vx: usize, nn: u8) {
+        if self.v[vx] == nn {
+            self.pc += 2;
+        }
+    }
+
+    fn skip_ne(&mut self, vx: usize, nn: u8) {
+        if self.v[vx] != nn {
+            self.pc += 2;
+        }
     }
 }
 
@@ -110,5 +147,41 @@ mod tests {
         
         assert!(low_limit.is_err());
         assert_matches!(low_limit.unwrap_err(), CpuError::MemoryAddressOutOfBounds((_, _, _)));
+    }
+
+    #[test]
+    fn test_execute_instruction_jump() {
+        let mut cpu = CPU::new();
+        let jump_instruction = Instruction::JpAddr { address: PROGRAM_START + 1 };
+
+        let _ = cpu.execute_instruction(jump_instruction);
+
+        assert_eq!(cpu.pc, 0x201);
+    }
+
+    #[test]
+    fn test_execute_instruction_skip_e() {
+        let mut cpu = CPU::new();
+        let skip_e_instruction_e = Instruction::SeVxByte { vx: 1, nn: 0 };
+        let skip_e_instruction_ne = Instruction::SeVxByte { vx: 1, nn: 1 };
+
+        let _ = cpu.execute_instruction(skip_e_instruction_e);
+        assert_eq!(cpu.pc, 0x202);
+
+        let _ = cpu.execute_instruction(skip_e_instruction_ne);
+        assert_eq!(cpu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_execute_instruction_skip_ne() {
+        let mut cpu = CPU::new();
+        let skip_ne_instruction_e = Instruction::SneVxByte { vx: 1, nn: 0 };
+        let skip_ne_instruction_ne = Instruction::SneVxByte { vx: 1, nn: 1 };
+
+        let _ = cpu.execute_instruction(skip_ne_instruction_e);
+        assert_eq!(cpu.pc, 0x200);
+
+        let _ = cpu.execute_instruction(skip_ne_instruction_ne);
+        assert_eq!(cpu.pc, 0x202);
     }
 }
