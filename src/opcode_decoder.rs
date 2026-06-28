@@ -1,4 +1,4 @@
-use crate::instructions::Instructions;
+use crate::instructions::Instruction;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 
@@ -6,7 +6,6 @@ use crate::instructions::Instructions;
 struct Rule {
     mask: u16,
     id: u16,
-    instr: Instructions,
 }
 
 #[derive(Debug)]
@@ -14,37 +13,59 @@ pub struct OpcodeDecoder {
     table: [Rule; 16],
 }
 
-// The OpcodeDecoder struct is responsible for decoding Chip-8 opcodes into their corresponding instructions.
+// The OpcodeDecoder struct is responsible for decoding Chip-8 opcodes into their corresponding Instruction.
 impl OpcodeDecoder {
     fn new() -> Self {
         Self {
             table: [
-                Rule { mask: 0xF000, id: 0x1000, instr: Instructions::JpAddr },  /* 1NNN */
-                Rule { mask: 0xF000, id: 0x2000, instr: Instructions::CallAddr },/* 2NNN */
-                Rule { mask: 0xF000, id: 0x3000, instr: Instructions::SeVxByte },/* 3XNN */
-                Rule { mask: 0xF000, id: 0x4000, instr: Instructions::SneVxByte },/* 4XNN */
-                Rule { mask: 0xF00F, id: 0x5000, instr: Instructions::SeVxVy },  /* 5XY0 */
-                Rule { mask: 0xF00F, id: 0x9000, instr: Instructions::SneVxVy }, /* 9XY0 */
-                Rule { mask: 0xF000, id: 0x6000, instr: Instructions::LdVxByte },/* 6XNN */
-                Rule { mask: 0xF000, id: 0x7000, instr: Instructions::AddVxByte },/* 7XNN */
-                Rule { mask: 0xFFFF, id: 0x00EE, instr: Instructions::Ret },     /* 00EE */
-                Rule { mask: 0xF00F, id: 0x8000, instr: Instructions::LdVxVy },  /* 8XY0 */
-                Rule { mask: 0xF00F, id: 0x8001, instr: Instructions::OrVxVy },  /* 8XY1 */
-                Rule { mask: 0xF00F, id: 0x8002, instr: Instructions::AndVxVy }, /* 8XY2 */
-                Rule { mask: 0xF00F, id: 0x8003, instr: Instructions::XorVxVy }, /* 8XY3 */
-                Rule { mask: 0xF00F, id: 0x8004, instr: Instructions::AddVxVy }, /* 8XY4 */
-                Rule { mask: 0xF00F, id: 0x8005, instr: Instructions::SubVxVy }, /* 8XY5 */
-                Rule { mask: 0xF00F, id: 0x8007, instr: Instructions::SubnVxVy },/* 8XY7 */
+                Rule { mask: 0xF000, id: 0x1000 },  /* 1NNN */
+                Rule { mask: 0xF000, id: 0x2000 },  /* 2NNN */
+                Rule { mask: 0xF000, id: 0x3000 },  /* 3XNN */
+                Rule { mask: 0xF000, id: 0x4000 },  /* 4XNN */
+                Rule { mask: 0xF00F, id: 0x5000 },  /* 5XY0 */
+                Rule { mask: 0xF00F, id: 0x9000 },  /* 9XY0 */
+                Rule { mask: 0xF000, id: 0x6000 },  /* 6XNN */
+                Rule { mask: 0xF000, id: 0x7000 },  /* 7XNN */
+                Rule { mask: 0xFFFF, id: 0x00EE },  /* 00EE */
+                Rule { mask: 0xF00F, id: 0x8000 },  /* 8XY0 */
+                Rule { mask: 0xF00F, id: 0x8001 },  /* 8XY1 */
+                Rule { mask: 0xF00F, id: 0x8002 },  /* 8XY2 */
+                Rule { mask: 0xF00F, id: 0x8003 },  /* 8XY3 */
+                Rule { mask: 0xF00F, id: 0x8004 },  /* 8XY4 */
+                Rule { mask: 0xF00F, id: 0x8005 },  /* 8XY5 */
+                Rule { mask: 0xF00F, id: 0x8007 },  /* 8XY7 */
             ],
         }
     }
 
     // The decode method takes an opcode as input and returns the corresponding instruction if it matches any rule in the table.
-    pub fn decode(&self, opcode: u16) -> Option<Instructions> {
-        self.table
+    pub fn decode(&self, opcode: u16) -> Option<Instruction> {
+        let rule = self.table
             .iter()
-            .find(|rule| (opcode & rule.mask) == rule.id)
-            .map(|rule| rule.instr)
+            .position(|rule| (opcode & rule.mask) == rule.id);
+
+        match rule {
+            Some(i) => match i {
+                0 => Some(Instruction::JpAddr { address: (opcode & 0x0FFF) }),
+                1 => Some(Instruction::CallAddr { address: (opcode & 0x0FFF) }),
+                2 => Some(Instruction::SeVxByte { vx: (opcode & 0x0F00) as usize, nn: (opcode & 0x00FF) as u8 }),
+                3 => Some(Instruction::SneVxByte { vx: (opcode & 0x0F00) as usize, nn: (opcode & 0x00FF) as u8 }),
+                4 => Some(Instruction::SeVxVy),
+                5 => Some(Instruction::SneVxVy),
+                6 => Some(Instruction::LdVxByte),
+                7 => Some(Instruction::AddVxByte),
+                8 => Some(Instruction::Ret),
+                9 => Some(Instruction::LdVxVy),
+                10 => Some(Instruction::OrVxVy),
+                11 => Some(Instruction::AndVxVy),
+                12 => Some(Instruction::XorVxVy),
+                13 => Some(Instruction::AddVxVy),
+                14 => Some(Instruction::SubVxVy),
+                15 => Some(Instruction::SubnVxVy),
+                _ => None
+            },
+            _ => None
+        }
     }
 }
 
@@ -67,22 +88,22 @@ mod tests {
     fn test_decode_known_opcodes() {
         let decoder = OpcodeDecoder::new();
 
-        assert_eq!(decoder.decode(0x1ABC), Some(Instructions::JpAddr));
-        assert_eq!(decoder.decode(0x2345), Some(Instructions::CallAddr));
-        assert_eq!(decoder.decode(0x3AFF), Some(Instructions::SeVxByte));
-        assert_eq!(decoder.decode(0x4A01), Some(Instructions::SneVxByte));
-        assert_eq!(decoder.decode(0x5AB0), Some(Instructions::SeVxVy));
-        assert_eq!(decoder.decode(0x9AB0), Some(Instructions::SneVxVy));
-        assert_eq!(decoder.decode(0x6A10), Some(Instructions::LdVxByte));
-        assert_eq!(decoder.decode(0x7A10), Some(Instructions::AddVxByte));
-        assert_eq!(decoder.decode(0x00EE), Some(Instructions::Ret));
-        assert_eq!(decoder.decode(0x8AB0), Some(Instructions::LdVxVy));
-        assert_eq!(decoder.decode(0x8AB1), Some(Instructions::OrVxVy));
-        assert_eq!(decoder.decode(0x8AB2), Some(Instructions::AndVxVy));
-        assert_eq!(decoder.decode(0x8AB3), Some(Instructions::XorVxVy));
-        assert_eq!(decoder.decode(0x8AB4), Some(Instructions::AddVxVy));
-        assert_eq!(decoder.decode(0x8AB5), Some(Instructions::SubVxVy));
-        assert_eq!(decoder.decode(0x8AB7), Some(Instructions::SubnVxVy));
+        assert_eq!(decoder.decode(0x1ABC), Some(Instruction::JpAddr { address: 0x0ABC}));
+        assert_eq!(decoder.decode(0x2345), Some(Instruction::CallAddr { address: 0x0345}));
+        assert_eq!(decoder.decode(0x3AFF), Some(Instruction::SeVxByte { vx: 0x0A00, nn: 0x00FF as u8}));
+        assert_eq!(decoder.decode(0x4A01), Some(Instruction::SneVxByte { vx: 0x0A00, nn: 0x0001 as u8}));
+        assert_eq!(decoder.decode(0x5AB0), Some(Instruction::SeVxVy));
+        assert_eq!(decoder.decode(0x9AB0), Some(Instruction::SneVxVy));
+        assert_eq!(decoder.decode(0x6A10), Some(Instruction::LdVxByte));
+        assert_eq!(decoder.decode(0x7A10), Some(Instruction::AddVxByte));
+        assert_eq!(decoder.decode(0x00EE), Some(Instruction::Ret));
+        assert_eq!(decoder.decode(0x8AB0), Some(Instruction::LdVxVy));
+        assert_eq!(decoder.decode(0x8AB1), Some(Instruction::OrVxVy));
+        assert_eq!(decoder.decode(0x8AB2), Some(Instruction::AndVxVy));
+        assert_eq!(decoder.decode(0x8AB3), Some(Instruction::XorVxVy));
+        assert_eq!(decoder.decode(0x8AB4), Some(Instruction::AddVxVy));
+        assert_eq!(decoder.decode(0x8AB5), Some(Instruction::SubVxVy));
+        assert_eq!(decoder.decode(0x8AB7), Some(Instruction::SubnVxVy));
     }
 
     #[test]
