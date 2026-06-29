@@ -48,10 +48,10 @@ impl OpcodeDecoder {
             Some(i) => match i {
                 0 => Some(Instruction::JpAddr { address: (opcode & 0x0FFF) }),
                 1 => Some(Instruction::CallAddr { address: (opcode & 0x0FFF) }),
-                2 => Some(Instruction::SeVxByte { vx: (opcode & 0x0F00) as usize, nn: (opcode & 0x00FF) as u8 }),
-                3 => Some(Instruction::SneVxByte { vx: (opcode & 0x0F00) as usize, nn: (opcode & 0x00FF) as u8 }),
-                4 => Some(Instruction::SeVxVy),
-                5 => Some(Instruction::SneVxVy),
+                2 => Some(Instruction::SeVxByte { vx: ((opcode & 0x0F00) >> 8) as usize, nn: (opcode & 0x00FF) as u8 }),
+                3 => Some(Instruction::SneVxByte { vx: ((opcode & 0x0F00) >> 8) as usize, nn: (opcode & 0x00FF) as u8 }),
+                4 => Some(Instruction::SeVxVy { vx: ((opcode & 0x0F00) >> 8) as usize, vy: ((opcode & 0x00F0) >> 4) as usize }),
+                5 => Some(Instruction::SneVxVy { vx: ((opcode & 0x0F00) >> 8) as usize, vy: ((opcode & 0x00F0) >> 4) as usize }),
                 6 => Some(Instruction::LdVxByte),
                 7 => Some(Instruction::AddVxByte),
                 8 => Some(Instruction::Ret),
@@ -88,12 +88,12 @@ mod tests {
     fn test_decode_known_opcodes() {
         let decoder = OpcodeDecoder::new();
 
-        assert_eq!(decoder.decode(0x1ABC), Some(Instruction::JpAddr { address: 0x0ABC}));
-        assert_eq!(decoder.decode(0x2345), Some(Instruction::CallAddr { address: 0x0345}));
-        assert_eq!(decoder.decode(0x3AFF), Some(Instruction::SeVxByte { vx: 0x0A00, nn: 0x00FF as u8}));
-        assert_eq!(decoder.decode(0x4A01), Some(Instruction::SneVxByte { vx: 0x0A00, nn: 0x0001 as u8}));
-        assert_eq!(decoder.decode(0x5AB0), Some(Instruction::SeVxVy));
-        assert_eq!(decoder.decode(0x9AB0), Some(Instruction::SneVxVy));
+        assert_eq!(decoder.decode(0x1ABC), Some(Instruction::JpAddr { address: 0x0ABC }));
+        assert_eq!(decoder.decode(0x2345), Some(Instruction::CallAddr { address: 0x0345 }));
+        assert_eq!(decoder.decode(0x3AFF), Some(Instruction::SeVxByte { vx: ((0x3AFF & 0x0F00) >> 8), nn: 0x00FF as u8 }));
+        assert_eq!(decoder.decode(0x4A01), Some(Instruction::SneVxByte { vx: ((0x4A01 & 0x0F00) >> 8), nn: 0x0001 as u8 }));
+        assert_eq!(decoder.decode(0x5AB0), Some(Instruction::SeVxVy { vx: ((0x5AB0 & 0x0F00) >> 8), vy: ((0x5AB0 & 0x00F0) >> 4) }));
+        assert_eq!(decoder.decode(0x9AB0), Some(Instruction::SneVxVy { vx: ((0x9AB0 & 0x0F00) >> 8), vy: ((0x9AB0 & 0x00F0) >> 4) }));
         assert_eq!(decoder.decode(0x6A10), Some(Instruction::LdVxByte));
         assert_eq!(decoder.decode(0x7A10), Some(Instruction::AddVxByte));
         assert_eq!(decoder.decode(0x00EE), Some(Instruction::Ret));

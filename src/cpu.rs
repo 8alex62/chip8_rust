@@ -70,6 +70,8 @@ impl CPU {
             Instruction::CallAddr { address } => self.call(address),
             Instruction::SeVxByte { vx, nn } => self.skip_e(vx, nn),
             Instruction::SneVxByte { vx, nn } => self.skip_ne(vx, nn),
+            Instruction::SeVxVy { vx, vy } => self.skip_e_xy(vx, vy),
+            Instruction::SneVxVy { vx, vy } => self.skip_ne_xy(vx, vy),
             _ => return Err(CpuError::UnknownInstruction)
         }
 
@@ -81,21 +83,41 @@ impl CPU {
         self.pc = address;
     }
 
-    // Calls the function at the specified address
+    // Calls the function at the specified address -> 0x2NNN
     fn call(&mut self, address: u16) {
         // TODO : implementing the logic
     }
 
-    // Skips next instruction if vx == nn
+    // Skips next instruction if vx == nn -> 0x3XNN
     fn skip_e(&mut self, vx: usize, nn: u8) {
         if self.v[vx] == nn {
             self.pc += 2;
         }
     }
 
+    // Skips next instruction if vx != nn -> 0x4XNN
     fn skip_ne(&mut self, vx: usize, nn: u8) {
         if self.v[vx] != nn {
             self.pc += 2;
+        }
+    }
+
+    // Returns from the current routine -> 0x00EE
+    fn ret(&mut self) {
+        // TODO : implementing the logic
+    }
+
+    // Skips next instruction if vx == vy -> 0x5XY0
+    fn skip_e_xy(&mut self, vx: usize, vy: usize) {
+        if self.v[vx] == self.v[vy] {
+            self.pc += 2
+        }
+    }
+
+    // Skips next instruction if vx != vy -> 0x9XY0
+    fn skip_ne_xy(&mut self, vx: usize, vy: usize) {
+        if self.v[vx] != self.v[vy] {
+            self.pc += 2
         }
     }
 }
@@ -182,6 +204,52 @@ mod tests {
         assert_eq!(cpu.pc, 0x200);
 
         let _ = cpu.execute_instruction(skip_ne_instruction_ne);
+        assert_eq!(cpu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_execute_instruction_skip_e_xy() {
+        let mut cpu = CPU::new();
+
+        let vx = 0x0F00 >> 8;
+        cpu.v[vx] = 1;
+
+        let vy = 0x00A0 >> 4;
+        cpu.v[vy] = 1;
+
+        let vy_1 = 0x00B0 >> 4;
+        cpu.v[vy_1] = 2;
+
+        let skip_e_xy_instruction_e = Instruction::SeVxVy { vx: vx, vy: vy };
+        let skip_e_xy_instruction_ne = Instruction::SeVxVy { vx: vx, vy: vy_1 };
+
+        let _ = cpu.execute_instruction(skip_e_xy_instruction_e);
+        assert_eq!(cpu.pc, 0x202);
+
+        let _ = cpu.execute_instruction(skip_e_xy_instruction_ne);
+        assert_eq!(cpu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_execute_instruction_skip_ne_xy() {
+        let mut cpu = CPU::new();
+
+        let vx = 0x0F00 >> 8;
+        cpu.v[vx] = 1;
+
+        let vy = 0x00A0 >> 4;
+        cpu.v[vy] = 1;
+
+        let vy_1 = 0x00B0 >> 4;
+        cpu.v[vy_1] = 2;
+
+        let skip_e_xy_instruction_e = Instruction::SneVxVy { vx: vx, vy: vy };
+        let skip_e_xy_instruction_ne = Instruction::SneVxVy { vx: vx, vy: vy_1 };
+
+        let _ = cpu.execute_instruction(skip_e_xy_instruction_e);
+        assert_eq!(cpu.pc, 0x200);
+
+        let _ = cpu.execute_instruction(skip_e_xy_instruction_ne);
         assert_eq!(cpu.pc, 0x202);
     }
 }
