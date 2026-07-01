@@ -85,7 +85,10 @@ impl CPU {
 
     // Calls the function at the specified address -> 0x2NNN
     fn call(&mut self, address: u16) {
-        // TODO : implementing the logic
+        self.stack[self.jump_nb] = self.pc + 2;
+        self.jump[self.jump_nb] = address;
+        self.jump_nb += 1;
+        self.pc = address;
     }
 
     // Skips next instruction if vx == nn -> 0x3XNN
@@ -104,7 +107,12 @@ impl CPU {
 
     // Returns from the current routine -> 0x00EE
     fn ret(&mut self) {
-        // TODO : implementing the logic
+        if self.jump_nb == 0 {
+            return;
+        }
+
+        self.jump_nb -= 1;
+        self.pc = self.stack[self.jump_nb];
     }
 
     // Skips next instruction if vx == vy -> 0x5XY0
@@ -251,5 +259,22 @@ mod tests {
 
         let _ = cpu.execute_instruction(skip_e_xy_instruction_ne);
         assert_eq!(cpu.pc, 0x202);
+    }
+
+    #[test]
+    fn test_call_and_ret_update_program_counter_and_stack() {
+        let mut cpu = CPU::new();
+        cpu.pc = 0x200;
+
+        cpu.call(0x300);
+
+        assert_eq!(cpu.pc, 0x300);
+        assert_eq!(cpu.stack[0], 0x202);
+        assert_eq!(cpu.jump_nb, 1);
+
+        cpu.ret();
+
+        assert_eq!(cpu.pc, 0x202);
+        assert_eq!(cpu.jump_nb, 0);
     }
 }
